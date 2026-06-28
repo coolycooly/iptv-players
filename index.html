@@ -1,0 +1,664 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>IPTV Player</title>
+  <!-- hls.js -->
+  <script src="https://cdn.jsdelivr.net/npm/hls.js@0.14.17"></script>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+      font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+    }
+    :root {
+      --bg: #0b0e14;
+      --bg-card: #141a24;
+      --bg-hover: #1f2a3a;
+      --text: #f0f4fa;
+      --text-dim: #8a9bb5;
+      --accent: #2b7cff;
+      --accent-glow: #2b7cff55;
+      --border: #2a3444;
+      --radius: 16px;
+      --shadow: 0 12px 32px rgba(0,0,0,0.6);
+      --transition: 0.2s ease;
+    }
+    body {
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      padding: 16px;
+      display: flex;
+      flex-direction: column;
+    }
+    /* header */
+    .header {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 12px 16px;
+      padding: 8px 4px 16px 4px;
+      border-bottom: 1px solid var(--border);
+      margin-bottom: 20px;
+    }
+    .header h1 {
+      font-size: 1.6rem;
+      font-weight: 600;
+      background: linear-gradient(135deg, #2b7cff, #a855f7);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+      margin-right: auto;
+      letter-spacing: -0.5px;
+    }
+    .header-controls {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 8px;
+    }
+    select, input, button {
+      background: var(--bg-card);
+      color: var(--text);
+      border: 1px solid var(--border);
+      padding: 8px 14px;
+      border-radius: 40px;
+      font-size: 0.9rem;
+      outline: none;
+      transition: var(--transition);
+      cursor: pointer;
+    }
+    select:focus, input:focus, button:focus {
+      border-color: var(--accent);
+      box-shadow: 0 0 0 2px var(--accent-glow);
+    }
+    select option {
+      background: var(--bg);
+    }
+    input::placeholder {
+      color: var(--text-dim);
+    }
+    .search-bar {
+      display: flex;
+      gap: 6px;
+      flex: 1 1 240px;
+    }
+    .search-bar input {
+      flex: 1;
+      min-width: 120px;
+    }
+    .btn-icon {
+      background: var(--bg-card);
+      border-radius: 40px;
+      padding: 8px 14px;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .theme-toggle {
+      background: var(--bg-card);
+      border-radius: 40px;
+      padding: 8px 14px;
+    }
+    /* stats */
+    .stats {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12px 20px;
+      font-size: 0.85rem;
+      color: var(--text-dim);
+      padding: 8px 4px 12px 4px;
+      border-bottom: 1px solid var(--border);
+      margin-bottom: 16px;
+    }
+    .stats span {
+      background: var(--bg-card);
+      padding: 4px 14px;
+      border-radius: 30px;
+      border: 1px solid var(--border);
+    }
+    /* grid / list */
+    .channels-container {
+      flex: 1;
+      overflow-y: auto;
+      max-height: 65vh;
+      padding-right: 4px;
+    }
+    .channels-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+      gap: 10px;
+    }
+    .channels-list {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+    .channel-item {
+      background: var(--bg-card);
+      padding: 12px 16px;
+      border-radius: var(--radius);
+      border: 1px solid transparent;
+      transition: var(--transition);
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      font-size: 0.95rem;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .channel-item:hover, .channel-item:focus {
+      background: var(--bg-hover);
+      border-color: var(--accent);
+      transform: scale(1.01);
+    }
+    .channel-item.active {
+      border-color: var(--accent);
+      background: var(--bg-hover);
+      box-shadow: 0 0 16px var(--accent-glow);
+    }
+    .channel-item .channel-name {
+      flex: 1;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .channel-item .channel-group {
+      font-size: 0.7rem;
+      background: var(--border);
+      padding: 2px 10px;
+      border-radius: 30px;
+      color: var(--text-dim);
+      flex-shrink: 0;
+    }
+    .channel-item .fav-star {
+      color: #fbbf24;
+      font-size: 1.2rem;
+      cursor: pointer;
+      flex-shrink: 0;
+      padding: 0 4px;
+    }
+    /* player */
+    .player-wrapper {
+      background: #000;
+      border-radius: var(--radius);
+      overflow: hidden;
+      margin: 16px 0 12px 0;
+      position: relative;
+      aspect-ratio: 16/9;
+      max-height: 50vh;
+      border: 1px solid var(--border);
+    }
+    .player-wrapper video {
+      width: 100%;
+      height: 100%;
+      display: block;
+      background: #0a0a0a;
+    }
+    .player-overlay {
+      position: absolute;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      padding: 20px 16px 12px 16px;
+      background: linear-gradient(transparent, rgba(0,0,0,0.8));
+      color: white;
+      pointer-events: none;
+    }
+    .player-overlay .now-playing {
+      font-size: 1.1rem;
+      font-weight: 500;
+      text-shadow: 0 2px 8px rgba(0,0,0,0.6);
+    }
+    .player-overlay .now-playing small {
+      font-weight: 300;
+      opacity: 0.7;
+      margin-left: 10px;
+    }
+    /* responsive */
+    @media (max-width: 680px) {
+      .header { flex-direction: column; align-items: stretch; }
+      .header h1 { font-size: 1.4rem; }
+      .channels-grid { grid-template-columns: 1fr; }
+    }
+    /* TV friendly */
+    .channel-item:focus-visible {
+      outline: 3px solid var(--accent);
+      outline-offset: 2px;
+    }
+    /* scroll */
+    ::-webkit-scrollbar { width: 6px; }
+    ::-webkit-scrollbar-track { background: var(--bg); }
+    ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 10px; }
+    /* light theme */
+    .light {
+      --bg: #f2f6fc;
+      --bg-card: #ffffff;
+      --bg-hover: #e2eaf5;
+      --text: #1a2332;
+      --text-dim: #4a5b74;
+      --border: #cbd5e1;
+    }
+    .hidden { display: none !important; }
+  </style>
+</head>
+<body>
+
+<div class="header">
+  <h1>📺 IPTV</h1>
+  <div class="header-controls">
+    <select id="playlistType" aria-label="Source playlist">
+      <option value="main">🌍 Toutes les chaînes</option>
+      <option value="country">🇫🇷 Par pays</option>
+      <option value="category">📂 Par catégorie</option>
+      <option value="custom">🔗 URL personnalisée</option>
+    </select>
+    <select id="playlistSelect" aria-label="Sélectionner une playlist">
+      <option value="">Chargement...</option>
+    </select>
+    <div class="search-bar">
+      <input type="text" id="searchInput" placeholder="🔍 Rechercher..." />
+    </div>
+    <button id="themeToggle" class="theme-toggle" aria-label="Thème">🌙</button>
+    <button id="viewToggle" class="btn-icon" aria-label="Vue grille/liste">⊞</button>
+  </div>
+</div>
+
+<div class="stats" id="statsBar">
+  <span id="totalChannels">📡 0 chaînes</span>
+  <span id="loadTime">⏱️ 0ms</span>
+  <span id="groupCount">🏷️ 0 groupes</span>
+</div>
+
+<div class="player-wrapper" id="playerWrapper">
+  <video id="videoPlayer" controls autoplay playsinline></video>
+  <div class="player-overlay">
+    <div class="now-playing" id="nowPlaying">⚡ Sélectionnez une chaîne</div>
+  </div>
+</div>
+
+<div class="channels-container" id="channelsContainer">
+  <div id="channelList" class="channels-grid"></div>
+</div>
+
+<script>
+  (function() {
+    // ---------- state ----------
+    let allChannels = [];
+    let filteredChannels = [];
+    let currentChannel = null;
+    let activeIndex = -1;
+    let hlsInstance = null;
+    let favourites = JSON.parse(localStorage.getItem('iptv_favs') || '[]');
+    let viewMode = 'grid'; // grid | list
+    let theme = localStorage.getItem('iptv_theme') || 'dark';
+    let lang = 'fr';
+    const strings = {
+      fr: { playing: 'En cours', channels: 'chaînes', groups: 'groupes', noResult: 'Aucune chaîne trouvée' },
+      en: { playing: 'Now playing', channels: 'channels', groups: 'groups', noResult: 'No channels found' },
+      ar: { playing: 'يعرض الآن', channels: 'قناة', groups: 'مجموعة', noResult: 'لم يتم العثور على قنوات' }
+    };
+    const t = (key) => strings[lang]?.[key] || strings.fr[key];
+
+    // DOM refs
+    const video = document.getElementById('videoPlayer');
+    const nowPlaying = document.getElementById('nowPlaying');
+    const channelListEl = document.getElementById('channelList');
+    const searchInput = document.getElementById('searchInput');
+    const playlistType = document.getElementById('playlistType');
+    const playlistSelect = document.getElementById('playlistSelect');
+    const totalChannels = document.getElementById('totalChannels');
+    const loadTime = document.getElementById('loadTime');
+    const groupCount = document.getElementById('groupCount');
+    const themeToggle = document.getElementById('themeToggle');
+    const viewToggle = document.getElementById('viewToggle');
+
+    // ---------- theme ----------
+    function applyTheme(t) {
+      document.body.classList.toggle('light', t === 'light');
+      themeToggle.textContent = t === 'light' ? '☀️' : '🌙';
+      localStorage.setItem('iptv_theme', t);
+    }
+    themeToggle.addEventListener('click', () => {
+      theme = theme === 'dark' ? 'light' : 'dark';
+      applyTheme(theme);
+    });
+    applyTheme(theme);
+
+    // ---------- view toggle ----------
+    viewToggle.addEventListener('click', () => {
+      viewMode = viewMode === 'grid' ? 'list' : 'grid';
+      viewToggle.textContent = viewMode === 'grid' ? '⊞' : '☰';
+      renderChannels();
+    });
+
+    // ---------- playlist sources ----------
+    const PLAYLIST_BASE = 'https://iptv-org.github.io/iptv';
+    const PLAYLIST_MAIN = `${PLAYLIST_BASE}/index.m3u`;
+    const COUNTRY_LIST = `${PLAYLIST_BASE}/playlists/country.json`;
+    const CATEGORY_LIST = `${PLAYLIST_BASE}/playlists/category.json`;
+
+    let countryOptions = [];
+    let categoryOptions = [];
+
+    async function fetchPlaylistOptions() {
+      try {
+        const [countries, categories] = await Promise.all([
+          fetch(COUNTRY_LIST).then(r => r.json()),
+          fetch(CATEGORY_LIST).then(r => r.json())
+        ]);
+        countryOptions = countries;
+        categoryOptions = categories;
+        populateSelect('country', countries);
+        populateSelect('category', categories);
+      } catch(e) { console.warn('Options fetch error', e); }
+    }
+
+    function populateSelect(type, data) {
+      const sel = playlistSelect;
+      if (type === 'country') {
+        // keep custom? we'll rebuild when needed
+      }
+      // We'll fill on demand
+    }
+
+    function getPlaylistUrl(type, key) {
+      if (type === 'main') return PLAYLIST_MAIN;
+      if (type === 'country') return `${PLAYLIST_BASE}/playlists/country/${key}.m3u`;
+      if (type === 'category') return `${PLAYLIST_BASE}/playlists/category/${key}.m3u`;
+      if (type === 'custom') return key; // key is url
+      return PLAYLIST_MAIN;
+    }
+
+    // ---------- load playlist ----------
+    async function loadPlaylist(url) {
+      const start = performance.now();
+      try {
+        const resp = await fetch(url);
+        if (!resp.ok) throw new Error('HTTP ' + resp.status);
+        const data = await resp.text();
+        const parsed = parseM3U(data);
+        allChannels = parsed;
+        filteredChannels = [...allChannels];
+        activeIndex = -1;
+        renderChannels();
+        updateStats(start);
+        // restore favs
+        applyFavourites();
+        if (allChannels.length) {
+          // auto select first
+          selectChannel(0);
+        }
+        return parsed;
+      } catch(e) {
+        console.error('Playlist load error', e);
+        alert('Erreur de chargement: ' + e.message);
+        return [];
+      }
+    }
+
+    function parseM3U(data) {
+      const lines = data.split(/\r?\n/);
+      const channels = [];
+      let current = null;
+      for (let line of lines) {
+        line = line.trim();
+        if (!line) continue;
+        if (line.startsWith('#EXTINF:')) {
+          const match = line.match(/tvg-logo="([^"]*)"/);
+          const logo = match ? match[1] : '';
+          const nameMatch = line.match(/,(.+)$/);
+          const name = nameMatch ? nameMatch[1].trim() : 'Sans nom';
+          const groupMatch = line.match(/group-title="([^"]*)"/);
+          const group = groupMatch ? groupMatch[1] : 'Général';
+          current = { name, logo, group, url: '' };
+        } else if (line.startsWith('#') === false && current) {
+          current.url = line;
+          channels.push(current);
+          current = null;
+        }
+      }
+      return channels;
+    }
+
+    // ---------- render ----------
+    function renderChannels() {
+      const query = searchInput.value.toLowerCase().trim();
+      filteredChannels = allChannels.filter(c => c.name.toLowerCase().includes(query));
+      if (filteredChannels.length === 0) {
+        channelListEl.innerHTML = `<div style="padding:20px;color:var(--text-dim);text-align:center;">${t('noResult')}</div>`;
+        return;
+      }
+      const cls = viewMode === 'grid' ? 'channels-grid' : 'channels-list';
+      channelListEl.className = cls;
+      let html = '';
+      filteredChannels.forEach((ch, idx) => {
+        const isFav = favourites.includes(ch.url);
+        const activeClass = (idx === activeIndex) ? 'active' : '';
+        html += `
+          <div class="channel-item ${activeClass}" data-index="${idx}" data-url="${ch.url}" role="button" tabindex="0">
+            <span class="channel-name">${ch.name}</span>
+            <span class="channel-group">${ch.group}</span>
+            <span class="fav-star" data-url="${ch.url}">${isFav ? '⭐' : '☆'}</span>
+          </div>
+        `;
+      });
+      channelListEl.innerHTML = html;
+      // attach events
+      channelListEl.querySelectorAll('.channel-item').forEach(el => {
+        const idx = parseInt(el.dataset.index);
+        el.addEventListener('click', () => selectChannel(idx));
+        el.addEventListener('keydown', (e) => {
+          if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); selectChannel(idx); }
+        });
+        // fav star click
+        const star = el.querySelector('.fav-star');
+        if (star) {
+          star.addEventListener('click', (e) => {
+            e.stopPropagation();
+            const url = star.dataset.url;
+            toggleFav(url);
+            renderChannels(); // refresh
+          });
+        }
+      });
+      updateStats();
+    }
+
+    function selectChannel(index) {
+      if (index < 0 || index >= filteredChannels.length) return;
+      activeIndex = index;
+      const ch = filteredChannels[index];
+      currentChannel = ch;
+      // update active class
+      document.querySelectorAll('.channel-item').forEach(el => el.classList.remove('active'));
+      const items = document.querySelectorAll('.channel-item');
+      if (items[index]) items[index].classList.add('active');
+      // play
+      playChannel(ch);
+      nowPlaying.textContent = `${t('playing')}: ${ch.name}`;
+      // store last
+      localStorage.setItem('iptv_last_channel', JSON.stringify(ch));
+    }
+
+    function playChannel(ch) {
+      if (!ch || !ch.url) return;
+      const url = ch.url;
+      // destroy old hls
+      if (hlsInstance) {
+        hlsInstance.destroy();
+        hlsInstance = null;
+      }
+      video.removeAttribute('src');
+      video.load();
+      // detect HLS (.m3u8)
+      if (url.includes('.m3u8') || url.includes('m3u8')) {
+        if (Hls.isSupported()) {
+          hlsInstance = new Hls({ enableWorker: true, lowLatencyMode: true });
+          hlsInstance.loadSource(url);
+          hlsInstance.attachMedia(video);
+          hlsInstance.on(Hls.Events.MANIFEST_PARSED, () => video.play().catch(()=>{}));
+        } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
+          video.src = url;
+          video.play().catch(()=>{});
+        } else {
+          alert('HLS non supporté par ce navigateur.');
+        }
+      } else {
+        // direct .ts, .mp4, .mkv
+        video.src = url;
+        video.play().catch(()=>{});
+      }
+    }
+
+    // ---------- stats ----------
+    function updateStats(start) {
+      totalChannels.textContent = `📡 ${filteredChannels.length} / ${allChannels.length} ${t('channels')}`;
+      if (start) {
+        const elapsed = Math.round(performance.now() - start);
+        loadTime.textContent = `⏱️ ${elapsed}ms`;
+      }
+      const groups = new Set(allChannels.map(c => c.group));
+      groupCount.textContent = `🏷️ ${groups.size} ${t('groups')}`;
+    }
+
+    // ---------- favourites ----------
+    function toggleFav(url) {
+      const idx = favourites.indexOf(url);
+      if (idx > -1) favourites.splice(idx, 1);
+      else favourites.push(url);
+      localStorage.setItem('iptv_favs', JSON.stringify(favourites));
+    }
+
+    function applyFavourites() {
+      // just for display
+    }
+
+    // ---------- navigation with keyboard ----------
+    function navigateChannels(delta) {
+      if (filteredChannels.length === 0) return;
+      let newIdx = activeIndex + delta;
+      if (newIdx < 0) newIdx = filteredChannels.length - 1;
+      if (newIdx >= filteredChannels.length) newIdx = 0;
+      selectChannel(newIdx);
+      // scroll into view
+      const items = document.querySelectorAll('.channel-item');
+      if (items[newIdx]) items[newIdx].scrollIntoView({ block: 'center', behavior: 'smooth' });
+    }
+
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'ArrowUp') { e.preventDefault(); navigateChannels(-1); }
+      else if (e.key === 'ArrowDown') { e.preventDefault(); navigateChannels(1); }
+      else if (e.key === 'Enter' || e.key === ' ') {
+        if (activeIndex >= 0 && activeIndex < filteredChannels.length) {
+          e.preventDefault();
+          selectChannel(activeIndex);
+        }
+      } else if (e.key === 'Escape' || e.key === 'Backspace') {
+        // focus search or blur
+        if (document.activeElement?.tagName !== 'INPUT') {
+          searchInput.focus();
+        }
+      }
+    });
+
+    // ---------- playlist select logic ----------
+    async function onPlaylistTypeChange() {
+      const type = playlistType.value;
+      const sel = playlistSelect;
+      sel.innerHTML = '';
+      if (type === 'main') {
+        sel.innerHTML = `<option value="main">🌍 Toutes</option>`;
+        const url = PLAYLIST_MAIN;
+        await loadPlaylist(url);
+      } else if (type === 'country') {
+        // load countries
+        if (countryOptions.length === 0) await fetchPlaylistOptions();
+        countryOptions.forEach(c => {
+          sel.innerHTML += `<option value="${c.code}">${c.emoji} ${c.name}</option>`;
+        });
+        if (countryOptions.length) {
+          const first = countryOptions[0];
+          const url = getPlaylistUrl('country', first.code);
+          await loadPlaylist(url);
+        }
+      } else if (type === 'category') {
+        if (categoryOptions.length === 0) await fetchPlaylistOptions();
+        categoryOptions.forEach(c => {
+          sel.innerHTML += `<option value="${c.id}">${c.name}</option>`;
+        });
+        if (categoryOptions.length) {
+          const first = categoryOptions[0];
+          const url = getPlaylistUrl('category', first.id);
+          await loadPlaylist(url);
+        }
+      } else if (type === 'custom') {
+        sel.innerHTML = `<option value="custom">🔗 Entrez l'URL</option>`;
+        const customUrl = prompt('Entrez l\'URL de la playlist M3U:');
+        if (customUrl) {
+          await loadPlaylist(customUrl);
+        } else {
+          playlistType.value = 'main';
+          onPlaylistTypeChange();
+        }
+      }
+    }
+
+    playlistType.addEventListener('change', onPlaylistTypeChange);
+
+    playlistSelect.addEventListener('change', async (e) => {
+      const type = playlistType.value;
+      const val = e.target.value;
+      if (!val) return;
+      let url = '';
+      if (type === 'country') {
+        url = getPlaylistUrl('country', val);
+      } else if (type === 'category') {
+        url = getPlaylistUrl('category', val);
+      } else if (type === 'custom') {
+        url = val;
+      } else {
+        url = PLAYLIST_MAIN;
+      }
+      await loadPlaylist(url);
+    });
+
+    // ---------- search ----------
+    searchInput.addEventListener('input', renderChannels);
+
+    // ---------- init ----------
+    async function init() {
+      await fetchPlaylistOptions();
+      // default main
+      playlistType.value = 'main';
+      await loadPlaylist(PLAYLIST_MAIN);
+      // restore last channel
+      try {
+        const last = JSON.parse(localStorage.getItem('iptv_last_channel'));
+        if (last && allChannels.some(c => c.url === last.url)) {
+          const idx = filteredChannels.findIndex(c => c.url === last.url);
+          if (idx > -1) selectChannel(idx);
+        }
+      } catch(e) {}
+    }
+
+    init();
+
+    // ---------- zapping (bonus) ----------
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'PageUp' || e.key === 'PageDown') {
+        e.preventDefault();
+        const delta = e.key === 'PageUp' ? -10 : 10;
+        navigateChannels(delta);
+      }
+    });
+
+    // handle visibility change to reload if needed
+  })();
+</script>
+</body>
+</html>
